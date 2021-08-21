@@ -3,6 +3,7 @@ module github.com/anfimovoleh/ms-users
 go 1.16
 
 require (
+	github.com/anfimovoleh/httperr v0.0.0-20210821170609-2d866c9a3e7a // indirect
 	github.com/caarlos0/env v3.5.0+incompatible
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/go-chi/chi v4.0.3+incompatible

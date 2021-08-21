@@ -6,11 +6,13 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/go-ozzo/ozzo-validation/v4"
+	"github.com/anfimovoleh/httperr"
+
+	validation "github.com/go-ozzo/ozzo-validation/v4"
 
 	"github.com/dgrijalva/jwt-go"
 
-	"github.com/json-iterator/go"
+	jsoniter "github.com/json-iterator/go"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -35,39 +37,35 @@ const tokenExpirationDuration = time.Hour
 func Login(w http.ResponseWriter, r *http.Request) {
 	loginRequest := &LoginRequest{}
 	if err := json.NewDecoder(r.Body).Decode(loginRequest); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write(ErrResponse(http.StatusBadRequest, err))
+		httperr.BadRequest(w, err)
 		return
 	}
 
 	if err := loginRequest.Validate(); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write(ErrResponse(http.StatusBadRequest, err))
+		httperr.BadRequest(w, err)
 		return
 	}
 
 	user, err := DB(r).GetUser(loginRequest.Email)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			w.WriteHeader(http.StatusUnauthorized)
-			w.Write(ErrResponse(http.StatusUnauthorized, ErrInvalidEmailOrPassword))
+			httperr.BadRequest(w, err)
 			return
 		}
 
 		Log(r).WithError(err).Error("failed to get user")
-		w.WriteHeader(http.StatusInternalServerError)
+		httperr.InternalServerError(w)
 		return
 	}
+
 	if user == nil {
-		w.WriteHeader(http.StatusUnauthorized)
-		_, _ = w.Write(ErrResponse(http.StatusUnauthorized, ErrInvalidEmailOrPassword))
+		httperr.ErrResponse(w, http.StatusUnauthorized, ErrInvalidEmailOrPassword)
 		return
 	}
 
 	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(loginRequest.Password))
 	if err != nil {
-		w.WriteHeader(http.StatusUnauthorized)
-		_, _ = w.Write(ErrResponse(http.StatusUnauthorized, ErrInvalidEmailOrPassword))
+		httperr.ErrResponse(w, http.StatusUnauthorized, ErrInvalidEmailOrPassword)
 		return
 	}
 	_, token, err := JWT(r).Encode(
@@ -77,8 +75,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 		},
 	)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write(ErrResponse(http.StatusBadRequest, err))
+		httperr.BadRequest(w, err)
 		return
 	}
 
@@ -94,8 +91,9 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	}.Froze()
 	response, err := serializer.Marshal(result)
 	if err != nil {
-		Log(r).WithField("response", "LoginResponseSerialize").Error(err.Error())
-		w.WriteHeader(http.StatusInternalServerError)
+		Log(r).WithError(err).
+			Error("failed to serialize response")
+		httperr.InternalServerError(w)
 		return
 	}
 
