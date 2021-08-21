@@ -8,9 +8,11 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/anfimovoleh/httperr"
+
 	"github.com/anfimovoleh/ms-users/db"
 
-	"github.com/go-ozzo/ozzo-validation/v4"
+	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/go-ozzo/ozzo-validation/v4/is"
 	"github.com/google/uuid"
 )
@@ -27,27 +29,24 @@ func ResetPassword(w http.ResponseWriter, r *http.Request) {
 	log := Log(r).WithField("handler", "reset_password")
 	resetPasswordRequest := &ResetPasswordRequest{}
 	if err := json.NewDecoder(r.Body).Decode(resetPasswordRequest); err != nil {
-		w.Write(ErrResponse(http.StatusBadRequest, errors.New("not valid request body")))
-		w.WriteHeader(http.StatusBadRequest)
+		httperr.BadRequest(w, errors.New("not valid request body"))
 		return
 	}
 
 	if err := resetPasswordRequest.Validate(); err != nil {
-		w.Write(ErrResponse(400, errors.New("invalid email length")))
-		w.WriteHeader(http.StatusBadRequest)
+		httperr.BadRequest(w, err)
 		return
 	}
 
 	user, err := DB(r).GetUser(resetPasswordRequest.Email)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write(ErrResponse(http.StatusBadRequest, errors.New("invalid email address")))
+			httperr.BadRequest(w, errors.New("invalid email address"))
 			return
 		}
 
 		log.WithError(err).Errorf("failed to get user by email %s", resetPasswordRequest.Email)
-		w.WriteHeader(http.StatusInternalServerError)
+		httperr.InternalServerError(w)
 		return
 	}
 
@@ -67,9 +66,9 @@ func ResetPassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := DB(r).CreateToken(emailToken); err != nil {
-		Log(r).WithField("db", "email_tokens").WithError(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write(ErrResponse(500, err))
+		Log(r).WithField("db", "email_tokens").
+			WithError(err).Error("failed to create token")
+		httperr.InternalServerError(w)
 		return
 	}
 

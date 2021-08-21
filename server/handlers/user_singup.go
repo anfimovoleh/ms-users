@@ -7,7 +7,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/go-ozzo/ozzo-validation/v4"
+	"github.com/anfimovoleh/httperr"
+
+	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/go-ozzo/ozzo-validation/v4/is"
 
 	"github.com/anfimovoleh/ms-users/db"
@@ -37,21 +39,18 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 	log := Log(r).WithField("handler", "user_signup")
 	signupRequest := &SignupRequest{}
 	if err := json.NewDecoder(r.Body).Decode(signupRequest); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write(ErrResponse(400, err))
+		httperr.BadRequest(w, err)
 		return
 	}
 
 	if err := signupRequest.Validate(); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write(ErrResponse(400, err))
+		httperr.BadRequest(w, err)
 		return
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(signupRequest.Password), 8)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write(ErrResponse(400, err))
+		httperr.BadRequest(w, err)
 		return
 	}
 
@@ -68,8 +67,7 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if createdUser != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write(ErrResponse(400, errors.New("user with this email is already registered")))
+		httperr.BadRequest(w, errors.New("user with this email is already registered"))
 		return
 	}
 
@@ -83,20 +81,19 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 
 	if err := DB(r).CreateUser(dbUser); err != nil {
 		Log(r).WithField("table", "users").Error(err)
-		w.WriteHeader(http.StatusInternalServerError)
+		httperr.InternalServerError(w)
 		return
 	}
 
 	user, err := DB(r).GetUser(dbUser.Email)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write(ErrResponse(http.StatusBadRequest, errors.New("invalid email address")))
+			httperr.BadRequest(w, errors.New("invalid email address"))
 			return
 		}
 
 		log.WithError(err).Errorf("failed to get user by email %s", dbUser.Email)
-		w.WriteHeader(http.StatusInternalServerError)
+		httperr.InternalServerError(w)
 		return
 	}
 
@@ -109,7 +106,7 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 
 	if err := DB(r).CreateToken(confirmToken); err != nil {
 		Log(r).WithError(err).Error("failed to create token")
-		w.WriteHeader(http.StatusInternalServerError)
+		httperr.InternalServerError(w)
 		return
 	}
 
