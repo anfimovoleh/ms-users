@@ -8,30 +8,17 @@ import (
 	"github.com/anfimovoleh/ms-users/db"
 	"github.com/anfimovoleh/ms-users/email"
 	"github.com/go-chi/jwtauth"
-	"github.com/sirupsen/logrus"
 )
 
 type CtxKey int
 
 const (
-	logCtxKey = iota
-	webAppCtxKey
+	webAppCtxKey = iota
 	httpCtxKey
 	emailClientCtxKey
-	channelClientCtxKey
 	dbCtxKey
 	jwtCtxKey
 )
-
-func CtxLog(entry *logrus.Entry) func(context.Context) context.Context {
-	return func(ctx context.Context) context.Context {
-		return context.WithValue(ctx, logCtxKey, entry)
-	}
-}
-
-func Log(r *http.Request) *logrus.Entry {
-	return r.Context().Value(logCtxKey).(*logrus.Entry)
-}
 
 func CtxWebApp(webApp *url.URL) func(context.Context) context.Context {
 	return func(ctx context.Context) context.Context {

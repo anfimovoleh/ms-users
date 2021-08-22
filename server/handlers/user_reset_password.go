@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/anfimovoleh/httperr"
 
 	"github.com/anfimovoleh/ms-users/db"
@@ -25,8 +27,15 @@ func (r ResetPasswordRequest) Validate() error {
 	return validation.Validate(&r.Email, is.Email, validation.Required)
 }
 
-func ResetPassword(w http.ResponseWriter, r *http.Request) {
-	log := Log(r).WithField("handler", "reset_password")
+type ResetPasswordHandler struct {
+	log *zap.Logger
+}
+
+func NewResetPasswordHandler(log *zap.Logger) *ResetPasswordHandler {
+	return &ResetPasswordHandler{log: log}
+}
+
+func (h ResetPasswordHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	resetPasswordRequest := &ResetPasswordRequest{}
 	if err := json.NewDecoder(r.Body).Decode(resetPasswordRequest); err != nil {
 		httperr.BadRequest(w, errors.New("not valid request body"))
@@ -45,7 +54,10 @@ func ResetPassword(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		log.WithError(err).Errorf("failed to get user by email %s", resetPasswordRequest.Email)
+		h.log.With(
+			zap.Error(err),
+			zap.String("email", resetPasswordRequest.Email),
+		).Error("failed to get user")
 		httperr.InternalServerError(w)
 		return
 	}
@@ -66,8 +78,7 @@ func ResetPassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := DB(r).CreateToken(emailToken); err != nil {
-		Log(r).WithField("db", "email_tokens").
-			WithError(err).Error("failed to create token")
+		h.log.With(zap.Error(err)).Error("failed to create token")
 		httperr.InternalServerError(w)
 		return
 	}
@@ -77,7 +88,7 @@ func ResetPassword(w http.ResponseWriter, r *http.Request) {
 
 	//skip err for Email client
 	if err := EmailClient(r).Forgot(user.Email, link); err != nil {
-		Log(r).Errorf("failed to send forgot password email %s", err)
+		h.log.With(zap.Error(err)).Error("failed to send forgot password email")
 	}
 
 	w.WriteHeader(http.StatusOK)

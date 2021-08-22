@@ -1,38 +1,63 @@
 package config
 
 import (
+	"log"
+
 	"github.com/caarlos0/env"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 )
 
+// Log core structure responsible for logging in the application
 type Log struct {
-	Lvl string `env:"USERS_LOG_LEVEL" envDefault:"debug"`
+	Level      string `env:"USERS_LOG_LEVEL" envDefault:"DEBUG"`
+	EnableJSON bool   `env:"USERS_LOG_ENABLE_JSON" envDefault:"false"`
 }
 
-func (l *Log) GetLogEntry() *logrus.Entry {
-	//err can be ignored in this case
-	level, _ := logrus.ParseLevel(l.Lvl)
-
-	logger := logrus.New()
-	logger.SetLevel(level)
-
-	return logrus.NewEntry(logger)
-}
-
-func (c *ConfigImpl) Log() *logrus.Entry {
+func (c *ConfigImpl) Log() *zap.Logger {
 	if c.log != nil {
 		return c.log
 	}
 
-	c.Lock()
-	defer c.Unlock()
+	var (
+		l       Log
+		err     error
+		zCfg    = zap.NewProductionConfig()
+		zLogger *zap.Logger
+	)
 
-	log := &Log{}
-	if err := env.Parse(log); err != nil {
-		panic(err)
+	if err = env.Parse(&l); err != nil {
+		log.Fatalf("failed to parse log object: %v \n", err)
 	}
 
-	c.log = log.GetLogEntry()
+	switch l.Level {
+	case zap.DebugLevel.CapitalString():
+		zCfg.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
+	case zap.ErrorLevel.CapitalString():
+		zCfg.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	case zap.InfoLevel.CapitalString():
+		zCfg.Level = zap.NewAtomicLevelAt(zap.InfoLevel)
+	default:
+		log.Fatalf("unrecognized log level: %s; Available options: DEBUG, ERROR, INFO\n", l.Level)
+	}
+
+	switch l.EnableJSON {
+	case true:
+		zCfg.Encoding = "json"
+	case false:
+		zCfg.Encoding = "console"
+	}
+
+	zLogger, err = zCfg.Build()
+	if err != nil {
+		log.Fatalf("failed to build logger config: %v \n", err)
+	}
+
+	c.log = zLogger
+
+	c.log.Info("initialized log configuration",
+		zap.String("level", zCfg.Level.String()),
+		zap.String("encoding", zCfg.Encoding),
+	)
 
 	return c.log
 }

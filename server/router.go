@@ -2,29 +2,18 @@ package server
 
 import (
 	"net/http"
-	"net/url"
-	"time"
 
-	"github.com/go-chi/jwtauth"
+	chiwares "github.com/anfimovoleh/go-chi-middlewares"
 
-	"github.com/anfimovoleh/ms-users/db"
-	"github.com/anfimovoleh/ms-users/email"
+	"github.com/anfimovoleh/ms-users/config"
+
 	"github.com/anfimovoleh/ms-users/server/handlers"
-	"github.com/anfimovoleh/ms-users/server/middlewares"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/cors"
-	"github.com/sirupsen/logrus"
 )
 
-const durationThreshold = time.Second * 10
-
 func Router(
-	log *logrus.Entry,
-	emailClient email.Client,
-	url *url.URL,
-	webApp *url.URL,
-	db *db.DB,
-	jwtAuth *jwtauth.JWTAuth,
+	cfg config.Config,
 ) chi.Router {
 	router := chi.NewRouter()
 
@@ -37,24 +26,28 @@ func Router(
 		MaxAge:           300,
 	})
 
+	url, err := cfg.HTTP().URL()
+	if err != nil {
+		cfg.Log().Fatal("failed to get URL")
+	}
+
 	router.Use(
 		cors.Handler,
-		middlewares.Logger(log, durationThreshold),
-		middlewares.Ctx(
-			handlers.CtxLog(log),
+		chiwares.Logger(cfg.Log(), cfg.HTTP().ReqDurThreshold),
+		chiwares.Ctx(
 			handlers.CtxHTTP(url),
-			handlers.CtxEmailClient(emailClient),
-			handlers.CtxWebApp(webApp),
-			handlers.CtxDB(db),
-			handlers.CtxJWT(jwtAuth),
+			handlers.CtxEmailClient(cfg.EmailClient()),
+			handlers.CtxWebApp(cfg.WebsiteURL()),
+			handlers.CtxDB(cfg.DB()),
+			handlers.CtxJWT(cfg.JWT()),
 		),
 	)
 
 	router.Route("/user", func(router chi.Router) {
-		router.Post("/login", handlers.Login)
-		router.Post("/signup", handlers.Signup)
-		router.Put("/new_password", handlers.NewPassword)
-		router.Post("/reset_password", handlers.ResetPassword)
+		router.Post("/login", handlers.NewLoginHandler(cfg.Log()).Handle)
+		router.Post("/signup", handlers.NewSignupHandler(cfg.Log()).Handle)
+		router.Put("/new_password", handlers.NewNewPasswordHandler(cfg.Log()).Handle)
+		router.Post("/reset_password", handlers.NewResetPasswordHandler(cfg.Log()).Handle)
 	})
 
 	router.Get("/", func(w http.ResponseWriter, r *http.Request) {

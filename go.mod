@@ -3,7 +3,8 @@ module github.com/anfimovoleh/ms-users
 go 1.16
 
 require (
-	github.com/anfimovoleh/httperr v0.0.0-20210821170609-2d866c9a3e7a // indirect
+	github.com/anfimovoleh/go-chi-middlewares v1.1.0
+	github.com/anfimovoleh/httperr v0.0.0-20210821170609-2d866c9a3e7a
 	github.com/caarlos0/env v3.5.0+incompatible
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/go-chi/chi v4.0.3+incompatible
@@ -18,12 +19,13 @@ require (
 	github.com/lib/pq v1.10.2
 	github.com/pkg/errors v0.9.1
 	github.com/rubenv/sql-migrate v0.0.0-20210614095031-55d5740dbbcc
-	github.com/sirupsen/logrus v1.8.1
+	github.com/sirupsen/logrus v1.8.1 // indirect
 	github.com/spf13/cast v1.4.1
 	github.com/spf13/cobra v1.2.1
 	github.com/stellar/go v0.0.0-20210820154138-5485133f1531
+	go.uber.org/zap v1.18.1
 	golang.org/x/crypto v0.0.0-20210817164053-32db794688a5
-	golang.org/x/net v0.0.0-20210813160813-60bc85c4be6d
+	golang.org/x/net v0.0.0-20210813160813-60bc85c4be6d // indirect
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df // indirect
 )

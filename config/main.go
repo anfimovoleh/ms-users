@@ -4,17 +4,17 @@ import (
 	"net/url"
 	"sync"
 
+	"go.uber.org/zap"
+
 	"github.com/anfimovoleh/ms-users/db"
 	"github.com/anfimovoleh/ms-users/email"
 
 	"github.com/go-chi/jwtauth"
-
-	"github.com/sirupsen/logrus"
 )
 
 type Config interface {
 	HTTP() *HTTP
-	Log() *logrus.Entry
+	Log() *zap.Logger
 	EmailClient() *email.ClientImpl
 	WebsiteURL() *url.URL
 	DB() *db.DB
@@ -26,7 +26,7 @@ type ConfigImpl struct {
 
 	//internal objects
 	http   *HTTP
-	log    *logrus.Entry
+	log    *zap.Logger
 	email  *email.ClientImpl
 	webApp *url.URL
 	db     *db.DB
