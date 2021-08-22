@@ -1,9 +1,8 @@
 package db
 
 import (
-	"github.com/go-ozzo/ozzo-dbx"
+	dbx "github.com/go-ozzo/ozzo-dbx"
 	_ "github.com/lib/pq"
-	"github.com/sirupsen/logrus"
 )
 
 type DB struct {
@@ -19,22 +18,12 @@ func New(link string) (*DB, error) {
 //go:generate gofmt -w bindata.go
 
 const (
-	migrationsDir = "migrations"
+	MigrationsDir = "migrations"
 )
 
 var (
 	Migrations *MigrationsLoader
 )
 
-var log = logrus.New()
-
 type AssetFn func(name string) ([]byte, error)
 type AssetDirFn func(name string) ([]string, error)
-
-func init() {
-	Migrations = NewMigrationsLoader()
-	if err := Migrations.loadDir(migrationsDir); err != nil {
-		log.WithField("service", "load-migrations").WithError(err).Fatal("failed to load migrations")
-		return
-	}
-}

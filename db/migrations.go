@@ -13,7 +13,7 @@ func NewMigrationsLoader() *MigrationsLoader {
 	return &MigrationsLoader{}
 }
 
-func (l *MigrationsLoader) loadDir(dir string) error {
+func (l *MigrationsLoader) LoadDir(dir string) error {
 	l.source = &migrate.AssetMigrationSource{
 		Asset:    Asset,
 		AssetDir: AssetDir,

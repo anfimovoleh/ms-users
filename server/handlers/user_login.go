@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/anfimovoleh/httperr"
 
 	validation "github.com/go-ozzo/ozzo-validation/v4"
@@ -34,7 +36,15 @@ type LoginResponse struct {
 
 const tokenExpirationDuration = time.Hour
 
-func Login(w http.ResponseWriter, r *http.Request) {
+type LoginHandler struct {
+	log *zap.Logger
+}
+
+func NewLoginHandler(log *zap.Logger) *LoginHandler {
+	return &LoginHandler{log: log}
+}
+
+func (h LoginHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	loginRequest := &LoginRequest{}
 	if err := json.NewDecoder(r.Body).Decode(loginRequest); err != nil {
 		httperr.BadRequest(w, err)
@@ -53,7 +63,10 @@ func Login(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		Log(r).WithError(err).Error("failed to get user")
+		h.log.With(
+			zap.String("email", loginRequest.Email),
+			zap.Error(err),
+		).Error("failed to get user")
 		httperr.InternalServerError(w)
 		return
 	}
@@ -91,8 +104,9 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	}.Froze()
 	response, err := serializer.Marshal(result)
 	if err != nil {
-		Log(r).WithError(err).
-			Error("failed to serialize response")
+		h.log.With(
+			zap.Error(err),
+		).Error("failed to serialize response")
 		httperr.InternalServerError(w)
 		return
 	}

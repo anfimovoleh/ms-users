@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/anfimovoleh/httperr"
 
 	validation "github.com/go-ozzo/ozzo-validation/v4"
@@ -35,8 +37,15 @@ func (u SignupRequest) Validate() error {
 	)
 }
 
-func Signup(w http.ResponseWriter, r *http.Request) {
-	log := Log(r).WithField("handler", "user_signup")
+type SignupHandler struct {
+	log *zap.Logger
+}
+
+func NewSignupHandler(log *zap.Logger) *SignupHandler {
+	return &SignupHandler{log: log}
+}
+
+func (h SignupHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	signupRequest := &SignupRequest{}
 	if err := json.NewDecoder(r.Body).Decode(signupRequest); err != nil {
 		httperr.BadRequest(w, err)
@@ -60,7 +69,10 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 		case sql.ErrNoRows:
 			createdUser = nil
 		default:
-			log.WithError(err).Errorf("failed to get user with email = %s", signupRequest.Email)
+			h.log.With(
+				zap.String("email", signupRequest.Email),
+				zap.Error(err),
+			).Error("failed to get user")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -80,7 +92,10 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := DB(r).CreateUser(dbUser); err != nil {
-		Log(r).WithField("table", "users").Error(err)
+		h.log.With(
+			zap.Any("user", dbUser),
+			zap.Error(err),
+		).Error("failed to create user")
 		httperr.InternalServerError(w)
 		return
 	}
@@ -92,7 +107,10 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		log.WithError(err).Errorf("failed to get user by email %s", dbUser.Email)
+		h.log.With(
+			zap.String("email", dbUser.Email),
+			zap.Error(err),
+		).Error("failed to get user by email")
 		httperr.InternalServerError(w)
 		return
 	}
@@ -105,7 +123,7 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := DB(r).CreateToken(confirmToken); err != nil {
-		Log(r).WithError(err).Error("failed to create token")
+		h.log.With(zap.Error(err)).Error("failed to create token")
 		httperr.InternalServerError(w)
 		return
 	}

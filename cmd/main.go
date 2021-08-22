@@ -1,11 +1,11 @@
 package main
 
 import (
-	"fmt"
+	"go.uber.org/zap"
 
 	"github.com/anfimovoleh/ms-users/db"
 
-	"github.com/anfimovoleh/ms-users"
+	app "github.com/anfimovoleh/ms-users"
 	"github.com/anfimovoleh/ms-users/config"
 	"github.com/pkg/errors"
 	"github.com/spf13/cast"
@@ -41,11 +41,21 @@ func main() {
 		Short: "migrate schema",
 		Long:  "performs a schema migration command",
 		Run: func(cmd *cobra.Command, args []string) {
-			log = log.WithField("service", "migration")
+			db.Migrations = db.NewMigrationsLoader()
+			if err := db.Migrations.LoadDir(db.MigrationsDir); err != nil {
+				log.With(
+					zap.Error(err),
+					zap.String("service", "load-migrations"),
+				).Fatal("failed to load migrations")
+				return
+			}
+
+			log = log.With(zap.String("service", "migration"))
 			var count int
 			// Allow invocations with 1 or 2 args.  All other args counts are erroneous.
 			if len(args) < 1 || len(args) > 2 {
-				log.WithField("arguments", args).Error("wrong argument count")
+				log.With(zap.Strings("arguments", args)).
+					Error("wrong argument count")
 				return
 			}
 			// If a second arg is present, parse it to an int and use it as the count
@@ -53,15 +63,15 @@ func main() {
 			if len(args) == 2 {
 				var err error
 				if count, err = cast.ToIntE(args[1]); err != nil {
-					log.WithError(err).Error("failed to parse count")
+					log.With(zap.Error(err)).Error("failed to parse count")
 					return
 				}
 			}
 
 			applied, err := MigrateDB(args[0], count, apiConfig.DB(), db.Migrations.Migrate)
-			log = log.WithField("applied", applied)
+			log = log.With(zap.Int("applied", applied))
 			if err != nil {
-				log.WithError(err).Error("migration failed")
+				log.With(zap.Error(err)).Error("migration failed")
 				return
 			}
 			log.Info("migrations applied")
@@ -70,7 +80,8 @@ func main() {
 
 	rootCmd.AddCommand(runCmd, migrateCmd)
 	if err := rootCmd.Execute(); err != nil {
-		log.WithField("cobra", "read").Error(fmt.Sprintf("failed to read command %s", err.Error()))
+		log.With(zap.String("cobra", "read")).
+			Error("failed to read command")
 		return
 	}
 }

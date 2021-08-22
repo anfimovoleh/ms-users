@@ -6,6 +6,8 @@ import (
 	"errors"
 	"net/http"
 
+	"go.uber.org/zap"
+
 	"github.com/anfimovoleh/httperr"
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 
@@ -26,9 +28,15 @@ func (n NewPasswordRequest) Validate() error {
 	)
 }
 
-func NewPassword(w http.ResponseWriter, r *http.Request) {
-	log := Log(r).WithField("db", "email_tokens")
+type NewPasswordHandler struct {
+	log *zap.Logger
+}
 
+func NewNewPasswordHandler(log *zap.Logger) *NewPasswordHandler {
+	return &NewPasswordHandler{log: log}
+}
+
+func (h NewPasswordHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	request := &NewPasswordRequest{}
 	if err := json.NewDecoder(r.Body).Decode(request); err != nil {
 		httperr.BadRequest(w, err)
@@ -43,12 +51,13 @@ func NewPassword(w http.ResponseWriter, r *http.Request) {
 	token, err := DB(r).GetUserByToken(request.Token)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			log.Debug("Token ID = ", request.Token)
 			httperr.BadRequest(w, errors.New("Verification email was already used"))
 			return
 		}
 
-		log.WithError(err).Error("failed to get user token")
+		h.log.With(
+			zap.Error(err),
+		).Error("failed to get user token")
 		httperr.InternalServerError(w)
 		return
 	}
@@ -65,7 +74,9 @@ func NewPassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := DB(r).SetUserNewPassword(&db.User{ID: token.UserID, Password: string(hashedPassword)}); err != nil {
-		Log(r).WithError(err).Error("failed to update user password")
+		h.log.With(
+			zap.Error(err),
+		).Error("failed to update user password")
 		httperr.InternalServerError(w)
 		return
 	}
@@ -77,14 +88,19 @@ func NewPassword(w http.ResponseWriter, r *http.Request) {
 
 	user, err := DB(r).GetUserByID(token.UserID)
 	if err != nil {
-		log.WithError(err).Error("failed to get user by id")
+		h.log.With(
+			zap.Error(err),
+		).Error("failed to get user by id")
 		httperr.InternalServerError(w)
 		return
 	}
 
 	//notify user about password changing
 	if err := EmailClient(r).NewPassword(user.Email); err != nil {
-		Log(r).WithField("email_client", "notification").Error("failed to send notification about new password to", token)
+		h.log.With(
+			zap.String("email_client", "notification"),
+			zap.Any("token", token),
+		).Error("failed to send notification about new password")
 		httperr.InternalServerError(w)
 		return
 	}
